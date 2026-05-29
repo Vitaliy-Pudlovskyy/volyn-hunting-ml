@@ -1,4 +1,4 @@
-# Volyn Hunting Grounds: 26 Years of Wildlife Data — Pipeline & Analysis
+# Volyn Hunting Grounds: 26 Years of Hunting-Ground — Pipeline & Analysis
 
 *[Читати українською → README_UA.md](README_UA.md)*
 
