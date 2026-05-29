@@ -1,0 +1,20 @@
+# Сирі дані — не комітимо, вони великі
+data/raw/
+data/processed/
+
+# Фінальні CSV — комітимо
+# data/final/ — НЕ виключаємо
+
+# Python кеші
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# Віртуальне середовище
+.venv/
+venv/
