@@ -1,15 +1,7 @@
 """
 Парсер для файлів Форми 2-ТП старого формату (2000-2012).
 """
-
-import pandas as pd
-
-
-#===============ФУНКЦІЇ-ПОМІЧНИКИ===========
-"""
-Парсер для файлів Форми 2-ТП старого формату (2000-2012).
-"""
-
+from pathlib import Path
 import pandas as pd
 
 
@@ -112,7 +104,6 @@ def parse_old_format(filepath, year):
     header_row = find_header_row(df)
     section_iv_start = find_section_iv_start(df)
 
-
     # --- Аналіз шапки ---
     hosts_raw = df.iloc[header_row, 3:].tolist()
     real_hosts = []
@@ -122,14 +113,25 @@ def parse_old_format(filepath, year):
             real_hosts.append((df_col, h))
     
     # --- Секція I: hosts_meta ---
-    metrics_section1 = {
-        2: "area_total",
-        3: "area_managed",
-        4:  "area_counted",
-        5:  "staff_total",
-        6:  "staff_biologists",
-        7: "staff_rangers",
-    }
+    if year in (2011, 2012):
+        metrics_section1 = {
+            3: "area_total",
+            5: "area_field",
+            6: "area_water",
+            7: "area_managed",
+            9: "staff_total",
+            10: "staff_biologists",
+            11: "staff_rangers",
+        }
+    else:
+        metrics_section1 = {
+            2: "area_total",
+            3: "area_managed",
+            4:  "area_counted",
+            5:  "staff_total",
+            6:  "staff_biologists",
+            7: "staff_rangers",
+        }
     
     rows = []
     for offset, metric_name in metrics_section1.items():
@@ -145,15 +147,26 @@ def parse_old_format(filepath, year):
     hosts_meta = pd.DataFrame(rows)
     
     # --- Секція II: finances ---
-    metrics_section2 = {
-        11: "total_expenses",
-        12: "gov_funding",
-        13: "salary",
-        16: "expense_counting",
-        17: "expense_protection",
-        22: "expense_feeding",
-        25: "revenue",
-    }
+    if year in (2011, 2012):
+        metrics_section2 = {
+            15: "total_expenses",
+            16: "gov_funding",
+            17: "salary",
+            20: "expense_counting",   # ← додано
+            21: "expense_protection",
+            26: "expense_feeding",
+            28: "revenue",
+        }
+    else:
+        metrics_section2 = {
+            11: "total_expenses",
+            12: "gov_funding",
+            13: "salary",
+            16: "expense_counting",
+            17: "expense_protection",
+            22: "expense_feeding",
+            25: "revenue",
+        }
     
     rows = []
     for offset, metric_name in metrics_section2.items():
@@ -243,3 +256,45 @@ def parse_old_format(filepath, year):
     relocation = populations_harvest[populations_harvest["metric"].isin(["relocated", "caught"])].copy()
     
     return hosts_meta, finances, populations, harvest, relocation
+
+FILES_BY_YEAR = {
+    2000: "C:\projects\hunting-volyn\data\Форма 2-тп полювання 2000.xls",
+    2001: "C:\projects\hunting-volyn\data\Форма 2-тп полювання 2001.xls",
+    2002: "C:\projects\hunting-volyn\data\Форма 2-тп полювання 2002.xls",
+    2003: "C:\projects\hunting-volyn\data\Форма 2-тп полювання 2003.xls",
+    2004: "C:\projects\hunting-volyn\data\Форма 2-тп полювання 2004.xls",
+    2005: "C:\projects\hunting-volyn\data\Форма 2-тп полювання 2005.xls",
+    2006: "C:\projects\hunting-volyn\data\Форма 2-тп полювання 2006.xls",
+    2007: "C:\projects\hunting-volyn\data\Форма 2-тп полювання 2007.xls",
+    2008: "C:\projects\hunting-volyn\data\Форма 2-тп полювання 2008.xls",
+    2009: "C:\projects\hunting-volyn\data\Форма 2-тп полювання 2009.xls",
+    2010: "C:\projects\hunting-volyn\data\Форма 2-тп полювання 2010.xls",
+    2011: "C:\projects\hunting-volyn\data\Форма 2-тп полювання 2011.xls",  
+    2012: "C:\projects\hunting-volyn\data\Форма 2-тп полювання 2012.xls",  
+}
+ 
+PROC = Path("data/processed")
+
+if __name__ == "__main__":
+    PROC.mkdir(parents=True, exist_ok=True)
+    print("=== Парсинг старого формату (2000-2012) ===\n")
+ 
+    all_hosts_meta, all_finances = [], []
+    all_populations, all_harvest, relocation_aggregate = [], [], []
+ 
+    for year, filepath in FILES_BY_YEAR.items():
+        print(f"{year}: {filepath}")
+        hosts_meta, finances, populations, harvest, relocation = parse_old_format(filepath, year)
+        all_hosts_meta.append(hosts_meta)
+        all_finances.append(finances)
+        all_populations.append(populations)
+        all_harvest.append(harvest)
+        relocation_aggregate.append(relocation)
+ 
+    pd.concat(all_hosts_meta, ignore_index=True).to_csv(PROC / "hosts_meta.csv", index=False)
+    pd.concat(all_finances, ignore_index=True).to_csv(PROC / "finances.csv", index=False)
+    pd.concat(all_populations, ignore_index=True).to_csv(PROC / "populations.csv", index=False)
+    pd.concat(all_harvest, ignore_index=True).to_csv(PROC / "harvest.csv", index=False)
+    pd.concat(relocation_aggregate, ignore_index=True).to_csv(PROC / "relocation_aggregate.csv", index=False)
+ 
+    print("\nЗбережено в data/processed/: hosts_meta.csv, finances.csv, populations.csv, harvest.csv, relocation_aggregate.csv")
