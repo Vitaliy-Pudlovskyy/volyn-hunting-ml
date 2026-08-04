@@ -1,28 +1,10 @@
 """
 Парсер для файлів Форми 2-ТП формату 2013-2018.
 """
-
+from pathlib import Path
 import pandas as pd
+from new_format import normalize_species_name
 
-def normalize_species_name(name):
-    if pd.isna(name):
-        return None
-    
-    name = name.strip()  
-    while "  " in name:
-        name = name.replace("  ", " ")
-    
-    name = name.rstrip("*").strip()
-
-    name = name.replace("- ", "-")
-
-    name = name.replace('"', "'")
-
-    if name == "Інші":
-        return None
-    if "всього" in name.lower() or "усього" in name.lower():
-        return None
-    return name
 
 def is_aggregate(name):
     """Чи це рядок-агрегат (а не справжнє господарство)"""
@@ -52,36 +34,36 @@ def parse_mid_format(filepath, year):
     """
     Парсить файл Форми 2-ТП формату 2013-2018.
     """
-    
+
     # --- Завантаження ---
     df = pd.read_excel(filepath, engine="xlrd", sheet_name="2-тп 1", header=None)
-    
+
     start_row = None
     for i in range(20):
         val = df.iloc[i, 0]
         if pd.notna(val) and "Користувач" in str(val):
             start_row = i + 1
             break
-    
+
     if start_row is None:
         raise ValueError("Не знайдено рядок 'Користувач'")
-    
+
     # --- Парсинг hosts_meta ---
     rows = []
     for i in range(start_row, df.shape[0]):
         host_name = df.iloc[i, 0]
-        
+
         # Пропускаємо порожні рядки
         if pd.isna(host_name):
             continue
-        
+
         # Пропускаємо агрегати ("ДКЛГ - усього", "ІНШІ - всього", "Волинська - всього")
         if is_aggregate(host_name):
             continue
-        
+
         # Очищаємо імʼя (бувають зайві пробіли)
         host_name = str(host_name).strip()
-        
+
         # Для кожної метрики беремо значення з відповідної колонки
         for col_index, metric_name in metrics_hosts_meta.items():
             value = df.iloc[i, col_index]
@@ -91,19 +73,17 @@ def parse_mid_format(filepath, year):
                 "metric": metric_name,
                 "value": value,
             })
-    
+
     hosts_meta = pd.DataFrame(rows)
     hosts_meta["value"] = pd.to_numeric(hosts_meta["value"], errors="coerce")
-    
-    
+
     df_oblik = None
     xl_sheets = pd.ExcelFile(filepath, engine="xlrd").sheet_names
     for sheet_name in ["облік\n", "облік ", "облік1", "облік"]:
         if sheet_name in xl_sheets:
             df_oblik = pd.read_excel(filepath, engine="xlrd", sheet_name=sheet_name, header=None)
             break
-    
-    
+
     header_row_oblik = None
     for i in range(10):
         val = df_oblik.iloc[i, 0]
@@ -111,14 +91,12 @@ def parse_mid_format(filepath, year):
             header_row_oblik = i
             break
 
-
-
     if df_oblik is None:
         raise ValueError(f"Не знайдено лист з обліком чисельності")
 
     if header_row_oblik is None:
         raise ValueError("Не знайдено шапку у листі 'облік'")
-    
+
     species_columns = {}
     for col in range(2, df_oblik.shape[1]):
         raw_name = df_oblik.iloc[header_row_oblik, col]
@@ -127,17 +105,16 @@ def parse_mid_format(filepath, year):
             species_columns[col] = species
 
     populations_rows = []
-    for i in range(header_row_oblik +1, df_oblik.shape[0]):
-        host_name = df_oblik.iloc[i , 0]
+    for i in range(header_row_oblik + 1, df_oblik.shape[0]):
+        host_name = df_oblik.iloc[i, 0]
 
         if pd.isna(host_name):
             continue
-        
+
         if is_aggregate(host_name):
             continue
-        
-        host_name = str(host_name).strip()
 
+        host_name = str(host_name).strip()
 
         for col_index, species in species_columns.items():
             value = df_oblik.iloc[i, col_index]
@@ -150,34 +127,34 @@ def parse_mid_format(filepath, year):
             })
 
     populations = pd.DataFrame(populations_rows)
-    populations["value"] = pd.to_numeric(populations["value"], errors = "coerce")
-    
+    populations["value"] = pd.to_numeric(populations["value"], errors="coerce")
+
     metrics_finances = {
-                        10:"total_expenses",
-                        11:"gov_funding",
-                        12:"salary",
-                        14:"expense_counting",
-                        15:"expense_protection",
-                        20:"expense_arrangement",
-                        21:"revenue",
-                       }
-    
+        10: "total_expenses",
+        11: "gov_funding",
+        12: "salary",
+        14: "expense_counting",
+        15: "expense_protection",
+        20: "expense_arrangement",
+        21: "revenue",
+    }
+
     # --- Парсинг finances ---
     finance_rows = []
     for i in range(start_row, df.shape[0]):
         host_name = df.iloc[i, 0]
-        
+
         # Пропускаємо порожні рядки
         if pd.isna(host_name):
             continue
-        
+
         # Пропускаємо агрегати ("ДКЛГ - усього", "ІНШІ - всього", "Волинська - всього")
         if is_aggregate(host_name):
             continue
-        
+
         # Очищаємо імʼя (бувають зайві пробіли)
         host_name = str(host_name).strip()
-        
+
         # Для кожної метрики беремо значення з відповідної колонки
         for col_index, metric_name in metrics_finances.items():
             value = df.iloc[i, col_index]
@@ -187,19 +164,19 @@ def parse_mid_format(filepath, year):
                 "metric": metric_name,
                 "value": value,
             })
-    
+
     finances = pd.DataFrame(finance_rows)
     finances["value"] = pd.to_numeric(finances["value"], errors="coerce")
-    
+
     metric_ranges = [
-        (80,99, "relocated"),
+        (80, 99, "relocated"),
         (99, 114, "caught"),
-        (114, 124, "found_dead" ),
+        (114, 124, "found_dead"),
         (124, 181, "shot_heads"),
-        (181, 238, "illegal_shot"), 
+        (181, 238, "illegal_shot"),
     ]
 
-    combined_rows= []
+    combined_rows = []
     for i in range(start_row, df.shape[0]):
         host_name = df.iloc[i, 0]
         if pd.isna(host_name):
@@ -228,10 +205,43 @@ def parse_mid_format(filepath, year):
     harvest = combined[combined["metric"].isin(["found_dead", "shot_heads", "illegal_shot"])].copy()
     relocation = combined[combined["metric"].isin(["relocated", "caught"])].copy()
 
-
-    return hosts_meta, populations, finances, harvest, relocation
-
+    return hosts_meta, finances, populations, harvest, relocation
 
 
+# ============ ВИКЛИК ДЛЯ ВСІХ РОКІВ 2013-2017 ============
+
+# Заповни реальними шляхами до своїх файлів
+FILES_BY_YEAR = {
+    2013: r"C:\projects\hunting-volyn\data\Волинська 2013 .xls",
+    2014: r"C:\projects\hunting-volyn\data\Волинська 2014 .xls",
+    2015: r"C:\projects\hunting-volyn\data\Волинська 2015 .xls",
+    2016: r"C:\projects\hunting-volyn\data\Волинська 2016 .xls",
+    2017: r"C:\projects\hunting-volyn\data\Волинська 2017 .xls",
+}
+
+PROC = Path("data/processed")
 
 
+if __name__ == "__main__":
+    PROC.mkdir(parents=True, exist_ok=True)
+    print("=== Парсинг mid-формату (2013-2017) ===\n")
+
+    hosts_meta_mid, finances_mid = [], []
+    populations_mid, harvest_mid, relocation_aggregate_mid = [], [], []
+
+    for year, filepath in FILES_BY_YEAR.items():
+        print(f"{year}: {filepath}")
+        hm, fin, pop, harv, reloc = parse_mid_format(filepath, year)
+        hosts_meta_mid.append(hm)
+        finances_mid.append(fin)
+        populations_mid.append(pop)
+        harvest_mid.append(harv)
+        relocation_aggregate_mid.append(reloc)
+
+    pd.concat(hosts_meta_mid, ignore_index=True).to_csv(PROC / "hosts_meta_mid.csv", index=False)
+    pd.concat(finances_mid, ignore_index=True).to_csv(PROC / "finances_mid.csv", index=False)
+    pd.concat(populations_mid, ignore_index=True).to_csv(PROC / "populations_mid.csv", index=False)
+    pd.concat(harvest_mid, ignore_index=True).to_csv(PROC / "harvest_mid.csv", index=False)
+    pd.concat(relocation_aggregate_mid, ignore_index=True).to_csv(PROC / "relocation_aggregate_mid.csv", index=False)
+
+    print("\nЗбережено в data/processed/: hosts_meta_mid.csv, finances_mid.csv, populations_mid.csv, harvest_mid.csv, relocation_aggregate_mid.csv")
