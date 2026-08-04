@@ -7,15 +7,15 @@
 - relocation/mortality винесені на окремі листи (як new)
 - площі ще в га, витрати в грн (як mid)
 """
-
+from pathlib import Path
 import pandas as pd
-from parser.new_format import (
+from new_format import (
     normalize_species_name,
     is_aggregate,
     is_invalid_host,
     parse_relocation_events,
 )
-from parser.new_format import find_section_columns, build_species_columns
+from new_format import find_section_columns, build_species_columns
 
 metrics_hosts_meta_2018 = {
     1: "area_total",
@@ -140,3 +140,40 @@ def parse_hybrid_2018(filepath, year=2018):
     
     relocation_events = parse_relocation_events(filepath, year, engine)
     return hosts_meta, finances, populations, harvest, relocation_events
+
+
+
+
+        # ============ ВИКЛИК ДЛЯ ВСІХ РОКІВ 2018/
+ 
+# Заповни реальними шляхами до своїх файлів
+FILES_BY_YEAR = {
+    2018: "C:\projects\hunting-volyn\data\Волинська 2018 .xls",
+}
+ 
+PROC = Path("data/processed")
+ 
+ 
+if __name__ == "__main__":
+    PROC.mkdir(parents=True, exist_ok=True)
+    print("=== Парсинг нового формату (2018) ===\n")
+ 
+    hosts_meta_2018, finances_2018 = [], []
+    populations_2018, harvest_2018, relocation_events_2018 = [], [], []
+
+    for year, filepath in FILES_BY_YEAR.items():
+        print(f"{year}: {filepath}")
+        hm, fin, pop, harv, reloc = parse_hybrid_2018(filepath, year)
+        hosts_meta_2018.append(hm)
+        finances_2018.append(fin)
+        populations_2018.append(pop)
+        harvest_2018.append(harv)
+        relocation_events_2018.append(reloc)
+ 
+    pd.concat(hosts_meta_2018, ignore_index=True).to_csv(PROC / "hosts_meta_2018.csv", index=False)
+    pd.concat(finances_2018, ignore_index=True).to_csv(PROC / "finances_2018.csv", index=False)
+    pd.concat(populations_2018, ignore_index=True).to_csv(PROC / "populations_2018.csv", index=False)
+    pd.concat(harvest_2018, ignore_index=True).to_csv(PROC / "harvest_2018.csv", index=False)
+    pd.concat(relocation_events_2018, ignore_index=True).to_csv(PROC / "relocation_events_2018.csv", index=False)
+ 
+    print("\nЗбережено в data/processed/: hosts_meta_2018.csv, finances_2018.csv, populations_2018.csv, harvest_2018.csv, relocation_events_2018.csv")
