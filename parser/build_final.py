@@ -17,28 +17,31 @@ print(f"Маппінг: {len(mapping)} raw → {len(set(mapping.values()))} ка
 SUFFIXES = ['', '_mid', '_2018', '_new', '_2025']
 TABLES   = ['hosts_meta', 'finances', 'populations', 'harvest']
 
-def build_table(table_name):
+
+def build_table(table_name, suffixes=None):
+    if suffixes is None:
+        suffixes = SUFFIXES
     parts = []
-    for suffix in SUFFIXES:
+    for suffix in suffixes:
         f = PROC / f'{table_name}{suffix}.csv'
         if f.exists():
             parts.append(pd.read_csv(f))
-    
+
     if not parts:
         print(f"  {table_name}: файлів не знайдено")
         return pd.DataFrame()
-    
+
     df = pd.concat(parts, ignore_index=True)
-    
+
     # Застосовуємо маппінг
     df['host_canonical'] = df['host'].map(mapping)
-    
+
     # Фільтруємо SKIP і немаповані
     before = len(df)
     df = df[df['host_canonical'].notna()]
     df = df[df['host_canonical'] != 'SKIP']
     after = len(df)
-    
+
     print(f"  {table_name}: {before} → {after} рядків (прибрано {before-after})")
     return df
 
@@ -64,6 +67,7 @@ SPECIES_MAP = {
     "Нерозень (сіра качка)": "Качки",
 }
 
+
 def apply_species_map(df):
     if 'species' not in df.columns:
         return df
@@ -71,6 +75,7 @@ def apply_species_map(df):
         lambda x: SPECIES_MAP.get(str(x).strip(), str(x).strip()) if pd.notna(x) else x
     )
     return df
+
 
 if __name__ == '__main__':
     print("=== Генерація фінальних CSV ===\n")
@@ -82,6 +87,25 @@ if __name__ == '__main__':
             continue
         df = apply_species_map(df)
         df['value'] = pd.to_numeric(df['value'], errors='coerce')
+        out = FINAL / f'{table}_final.csv'
+        df.to_csv(out, index=False)
+        print(f"  Збережено: {out.name}")
+
+    # relocation — дві різні схеми (aggregate: metric/value; events: count/location/origin),
+    # обробляємо окремо, з різними суфіксами для кожної
+    for table, suffixes in [
+        ('relocation_aggregate', ['', '_mid']),
+        ('relocation_events', ['_2018', '_new', '_2025']),
+    ]:
+        print(f"\n{table}:")
+        df = build_table(table, suffixes=suffixes)
+        if df.empty:
+            continue
+        df = apply_species_map(df)
+        if 'value' in df.columns:
+            df['value'] = pd.to_numeric(df['value'], errors='coerce')
+        elif 'count' in df.columns:
+            df['count'] = pd.to_numeric(df['count'], errors='coerce')
         out = FINAL / f'{table}_final.csv'
         df.to_csv(out, index=False)
         print(f"  Збережено: {out.name}")
