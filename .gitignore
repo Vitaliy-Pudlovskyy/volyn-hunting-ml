@@ -18,3 +18,7 @@ __pycache__/
 # Віртуальне середовище
 .venv/
 venv/
+
+# Секрети
+secrets.toml
+.env
