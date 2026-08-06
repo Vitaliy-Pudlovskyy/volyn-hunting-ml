@@ -12,7 +12,6 @@
 
 import sys
 import os
-from dotenv import load_dotenv
 from groq import Groq
 import json
 import sqlite3
@@ -56,8 +55,6 @@ GENERAL_CONTEXT = """
 SPECIES_CONTEXT = {
     "Кабан": "Африканська чума свиней (АЧС) спричиняє масову смертність кабанів, з періодичними спалахами з середини 2010-х.",
 }
-
-load_dotenv()
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
