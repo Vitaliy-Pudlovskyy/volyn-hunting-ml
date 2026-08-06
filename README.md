@@ -1,10 +1,12 @@
-# Volyn Hunting Grounds: 26 Years of Hunting-Ground — Pipeline & Analysis
+# Volyn Hunting Grounds: 26 Years of Wildlife Data — Pipeline, Analysis & Live App
 
 *[Читати українською → README_UA.md](README_UA.md)*
 
-A machine-learning analysis of wildlife population dynamics across hunting grounds in **Volyn Oblast, Ukraine (2000–2025)**. The project has two halves of roughly equal weight: **(1) a data-engineering pipeline** that turns 26 years of inconsistent government reports into one clean analytical dataset, and **(2) ML models** (time-series forecasting, regression, classification, clustering, anomaly detection) whose results are validated against real historical events.
+A machine-learning analysis of wildlife population dynamics across hunting grounds in **Volyn Oblast, Ukraine (2000–2025)**, now deployed as an interactive app. The project has three parts: **(1) a data-engineering pipeline** that turns 26 years of inconsistent government reports into one clean analytical dataset, **(2) ML models** (time-series forecasting, regression, classification, clustering, anomaly detection) whose results are validated against real historical events, and **(3) a Streamlit app** combining the model outputs with an LLM-powered Q&A chat over the same database.
 
 > **TL;DR for reviewers.** The hard part was not the models — it was the data. Five different reporting formats across 26 years, **184 differently-named entities resolved to 75 canonical grounds**, unit shifts (ha ↔ thousand ha), and a reporting blackout during the 2023 Forestry Agency reform. The models are deliberately conservative: where the signal wasn't there (predator–prey VAR, wild-boar forecasting), the model was **rejected, not forced**. Headline finding: the 2022 hunting ban is associated with a **+18.9% roe-deer recovery** by 2025.
+
+**🔗 Live app:** [add your Streamlit Cloud link here]
 
 ---
 
@@ -89,11 +91,17 @@ Across 18 grounds with continuous 2019–2025 reporting:
 
 Forecast 2026–2028: **3,576 (conservative trend) → 4,286 (ARIMA aggregate)**. *Robustness:* a looser host set gives +17.4% on the direct 2022→2025 comparison; the pre-ban trend (2015–2021) was essentially flat, so this is not pre-existing growth.
 
+*Deployed as: **Time Series** tab — computed only for roe deer (Козуля) and wild boar (Кабан); the other three focal species lack the continuous, unbroken reporting history a meaningful forecast needs, so no number was forced for them.*
+
 ### Key finding 2 — anomaly detection rediscovered every major event
 Isolation Forest, with **no events encoded**, flagged top anomalies that map onto history: wild-boar −89% to −98% drops (2019–2020 = African Swine Fever), +200% to +667% jumps in 2023 (grounds resuming reporting after the reform), VESTA M +1678% in 2022 (a new private farm's first report). Independent validation against ground truth — the best available check for an unsupervised method.
 
-### Key finding 3 — grounds split into two scales, no middle tier
-K-Means (k=2 by silhouette) → large/established (n=22: ~303 roe deer, 157k UAH, 18 yrs) vs small/emerging (n=52: ~104 roe deer, 57k UAH, 14 yrs). Silhouette stayed below 0.31 for all k≥3 — there is genuinely no "medium" tier. *Caveat:* `n_years` is a clustering feature, so the split partly reflects reporting consistency, not only physical size.
+*Deployed as: **Anomaly Detection** tab, per species (Кабан, Козуля, Лось, Олень благородний), each with a score-distribution plot and per-ground examples.*
+
+### Key finding 3 — grounds split into three groups, no clean middle tier
+K-Means (k=3, confirmed by both elbow and silhouette methods) separates grounds into: a small outlier cluster of short-reporting-history or sharply-declining grounds, a mid-budget long-established cluster, and a high-budget long-established cluster. *Caveat:* `n_years` is a clustering feature, so the split partly reflects reporting consistency, not only physical/financial size; the two PCA components shown only explain ~63% of total variance.
+
+*Deployed as: **Clustering** tab, with the elbow/silhouette justification shown alongside the result.*
 
 ### Methods & integrity
 
@@ -105,6 +113,8 @@ K-Means (k=2 by silhouette) → large/established (n=22: ~303 roe deer, 157k UAH
 | `clustering.py` | ground typology (K-Means + PCA) | k by silhouette+elbow; State Reserve excluded as a domain outlier (it formed a degenerate singleton, silhouette 0.78) |
 | `anomaly_detection.py` | Isolation Forest event detection | `contamination` only sets the flag cutoff — it does **not** enter `score_samples`, so the anomaly *ranking* is identical across 0.02/0.05/0.10; validated against real events, not a self-referential stability metric |
 
+**Note on regression figures:** the population line in the `regression.py` plots is the *mean count per reporting ground*, not the oblast-wide total (unlike the Time Series tab, which sums a fixed 24-ground stable subset). Both are correct, honest numbers — they just answer different questions — and the app labels this explicitly to avoid the two tabs looking contradictory.
+
 #### Honest correction — classification cross-validation
 The classifier originally used `StratifiedKFold(shuffle=True)`, which mixes years and lets the model train on future data to predict the past — a leak the rest of the project explicitly guards against. Switching to **`TimeSeriesSplit`** (train always strictly before test) gives the honest picture:
 
@@ -115,6 +125,27 @@ The classifier originally used `StratifiedKFold(shuffle=True)`, which mixes year
 | Wild boar / Logistic Regression | 0.69 | **0.64 ± 0.13** | +0.05 |
 
 Two findings fall out of the fix: (a) the leak was worth up to **0.23 F1** — nearly a quarter of the metric; (b) under honest CV the *simpler* model (Logistic Regression) generalizes best in time, while Random Forest was the biggest beneficiary of the leak. For roe deer, two of five temporal folds have **no positive examples** (all 24 "overharvest" cases sit in later years), so the roe-deer classifier is **not well supported by the data** — stated as a limitation, not a result.
+
+*Deployed as: **Classification** tab, roe deer and wild boar only (the two species with enough harvest data for the model to be meaningful).*
+
+---
+
+## Part 3 — Interactive Deployment (Streamlit)
+
+The live app has **6 tabs**: a chat interface plus one tab per model above.
+
+**Chat tab.** A two-stage LLM pipeline over the SQLite database, via the free Groq API:
+1. **Extraction call** (`openai/gpt-oss-120b`) — parses the free-form question into structured fields (species, ground, topic, raw-data-or-analysis), given the *actual* list of species/grounds in the database as context, so it can match synonyms and alternate spellings.
+2. **`rapidfuzz`** — a second, deterministic layer that fuzzy-matches the extracted species/ground names against the real database values, catching anything the LLM didn't map exactly.
+3. **SQL query**, built per topic (population / harvest / finance / staff / relocation, or all five at once).
+4. **Analysis call**, also `openai/gpt-oss-120b` — turns the raw numbers into a written trend summary. *(Originally used a smaller/faster model here; switched after finding it made basic percentage-calculation errors when summarizing multi-year trends — a known weak point of small models on numeric reasoning, not a prompting issue.)* This call also receives documented domain context — the 2022 hunting ban, the full-scale war (Feb 2022 onward) and the resulting 2023 Forestry Agency reform reporting blackout, plus African Swine Fever specifically when the question is about wild boar — so the model explains trends using real documented causes instead of guessing or staying silent.
+
+**Model tabs.** Each of the five model tabs (Clustering, Regression, Classification, Anomaly Detection, Time Series) shows the saved figures plus a written conclusion *and* limitation for each result — the same standard of honesty as this README, not just a chart with no interpretation.
+
+**Engineering notes:**
+- The SQLite connection is wrapped in `@st.cache_resource` (with `check_same_thread=False`) so it survives Streamlit's rerun-per-interaction model without reconnecting or crashing across threads.
+- The Groq API key is read via `st.secrets`, kept out of git entirely (both `.env` and `secrets.toml` are gitignored); set locally via `.streamlit/secrets.toml` and in the cloud via the Streamlit Cloud dashboard.
+- Runs on Groq's free tier — no cost at current usage, though the free tier has a daily request/token cap per model worth knowing about if traffic grows.
 
 ---
 
@@ -147,11 +178,16 @@ hunting-volyn/
 ├── data/
 │   ├── processed/          # per-year parsed CSVs
 │   └── final/              # clean analytical dataset
-└── reports/figures/
+├── db/
+│   └── volyn.db             # SQLite database powering the chat tab
+├── reports/figures/         # all saved model figures, used by the app
+├── main.py                  # analyze_question() — the chat LLM pipeline
+└── app.py                   # Streamlit entry point (6 tabs)
 ```
 
 ## Running
 
+**Models / data pipeline:**
 ```bash
 pip install -r requirements.txt
 
@@ -159,14 +195,20 @@ pip install -r requirements.txt
 python build_final.py
 
 # 2. run any model (species as optional CLI args)
-python models/time_series.py Козуля Лось
+python models/time_series.py Козуля Кабан
 python models/classification.py
 python models/clustering.py
 python models/anomaly_detection.py
 ```
 
+**Web app (local):**
+```bash
+streamlit run app.py
+```
+Requires a `.streamlit/secrets.toml` with `GROQ_API_KEY = "..."` (get a free key at console.groq.com).
+
 ## Stack
-`pandas` · `numpy` · `scikit-learn` · `statsmodels` · `pmdarima` · `lightgbm` · `xgboost` · `shap` · `matplotlib` · `xlrd` · `openpyxl`
+`pandas` · `numpy` · `scikit-learn` · `statsmodels` · `pmdarima` · `lightgbm` · `xgboost` · `shap` · `matplotlib` · `xlrd` · `openpyxl` · `streamlit` · `groq` · `rapidfuzz`
 
 ## Known tech debt (honest)
 - `metrics_hosts_meta` / `metrics_finances` dicts are duplicated across four parsers; they belong in one config (a format change currently means editing four files).
@@ -174,9 +216,10 @@ python models/anomaly_detection.py
 - `build_final.py` drops unmapped hosts silently; it should print the unmapped set before filtering.
 
 ## Limitations
-- 2023–2024 reporting is incomplete due to the Forestry Agency reform (handled explicitly).
-- Forecasts are **trends**, not precise counts.
+- 2023–2024 reporting is incomplete due to the Forestry Agency reform (handled explicitly, including in the chat's injected context).
+- Forecasts are **trends**, not precise counts, and are computed only where the underlying data is continuous enough to support them (2 of 5 focal species for Time Series, 2 of 5 for Classification).
 - Empty vs "not reported" are indistinguishable in harvest (both `NaN`).
 - Wild-boar forecasting intentionally omitted given ASF volatility.
+- Species-synonym matching relies on `rapidfuzz` alone (no manual synonym dictionary); it catches spelling variants but not true dialectal synonyms.
 
 ---
