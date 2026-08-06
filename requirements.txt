@@ -8,7 +8,12 @@ lightgbm>=4.0
 xgboost>=2.0
 shap>=0.44
 matplotlib>=3.7
- 
+
 # Excel parsing (парсери Форми 2-ТП)
-xlrd>=2.0        # .xls (формати 2000–2018)
+xlrd>=2.0        # .xls (формати 2000-2018)
 openpyxl>=3.1    # .xlsx (формати 2019+)
+
+# LLM-чат (Streamlit deploy)
+streamlit>=1.38
+groq>=0.11
+rapidfuzz>=3.9
