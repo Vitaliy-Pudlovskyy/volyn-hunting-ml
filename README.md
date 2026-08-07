@@ -6,7 +6,7 @@ A machine-learning analysis of wildlife population dynamics across hunting groun
 
 > **TL;DR for reviewers.** The hard part was not the models — it was the data. Five different reporting formats across 26 years, **184 differently-named entities resolved to 75 canonical grounds**, unit shifts (ha ↔ thousand ha), and a reporting blackout during the 2023 Forestry Agency reform. The models are deliberately conservative: where the signal wasn't there (predator–prey VAR, wild-boar forecasting), the model was **rejected, not forced**. Headline finding: the 2022 hunting ban is associated with a **+18.9% roe-deer recovery** by 2025.
 
-**🔗 Live app:** [add your Streamlit Cloud link here]
+**🔗 Live app:** [(https://nzoq8ukmhqknifjf5euchi.streamlit.app/)]
 
 ---
 
