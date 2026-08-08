@@ -5,6 +5,9 @@ from pathlib import Path
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Чат", "Кластеризація","Регресія", "Класифікація", "Anomaly Detection", "Time Series"])
 with tab1:
+    question = st.text_input("Постав питання про мисливські господарства Волині")
+    if st.button("Запитати"):
+        st.write(analyze_question(question))
     st.info("""
 **Про що можна запитати**
 
@@ -25,9 +28,6 @@ with tab1:
 - Модель аналізує лише те, що бачить у цифрах і документованому контексті (заборона полювання з 2022, війна, реформа 2023) — не робить припущень поза цим.
 - Безкоштовний API має денний ліміт запитів — за високого навантаження можлива тимчасова помилка, спробуй пізніше.
 """)
-    question = st.text_input("Постав питання про мисливські господарства Волині")
-    if st.button("Запитати"):
-        st.write(analyze_question(question))
 with tab2:   
     clustering_k = Path(__file__).parent /"reports"/"figures"/"clustering_k_selection.png"
     clustering_main = Path(__file__).parent /"reports"/"figures"/"clustering.png"
