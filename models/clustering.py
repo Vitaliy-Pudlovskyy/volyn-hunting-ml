@@ -14,7 +14,7 @@ ROOT = Path(__file__).parent.parent
 DATA = ROOT / 'data' / 'final'
 
 RANDOM_STATE = 42
-K_RANGE = range(2, 9)  # ← FIX: будемо перебирати k=2..8
+K_RANGE = range(2, 9) 
 
 
 def prepare_features():
@@ -65,7 +65,6 @@ def prepare_features():
 
     # ← FIX: виключаємо резерв і інші domain-outliers перед кластеризацією
     # Державний мисливський резерв — це не мисливське господарство,
-    # а централізована установа для переселення тварин.
     # Включення спотворює кластеризацію (singleton cluster з silhouette=0.78).
     EXCLUDE_HOSTS = ['Державний мисливський резерв']
     df = df.drop(index=[h for h in EXCLUDE_HOSTS if h in df.index])
