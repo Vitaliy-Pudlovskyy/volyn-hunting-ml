@@ -175,11 +175,8 @@ def train_regression(species):
     df = clean(df)
     df['delta'] = df['population_t1'] - df['population_t']
 
-    # ← FIX: сортуємо за роком (всередині року — за host для детермінізму)
-    # TimeSeriesSplit йде по порядку рядків, тому це КРИТИЧНО
     df = df.sort_values(['year', 'host']).reset_index(drop=True)
 
-    # ← FIX: TimeSeriesSplit замість cv=5
     tscv = TimeSeriesSplit(n_splits=5)
 
     # ── Модель 1: прогноз з population_t ──────────────────
