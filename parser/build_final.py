@@ -36,13 +36,24 @@ def build_table(table_name, suffixes=None):
     # Застосовуємо маппінг
     df['host_canonical'] = df['host'].map(mapping)
 
+    # Немаповані господарства не зникають мовчки: друкуємо назву й роки
+    unmapped = df[df['host_canonical'].isna()]
+    if not unmapped.empty:
+        years_by_host = unmapped.groupby('host')['year'].agg(lambda s: sorted(s.unique()))
+        print(f"  ⚠ {table_name}: {len(years_by_host)} немапованих господарств — їх рядки буде відкинуто:")
+        for host, years in years_by_host.items():
+            print(f"      {host!r}: роки {years}")
+
     # Фільтруємо SKIP і немаповані
     before = len(df)
+    n_unmapped = df['host_canonical'].isna().sum()
+    n_skip = (df['host_canonical'] == 'SKIP').sum()
     df = df[df['host_canonical'].notna()]
     df = df[df['host_canonical'] != 'SKIP']
     after = len(df)
 
-    print(f"  {table_name}: {before} → {after} рядків (прибрано {before-after})")
+    print(f"  {table_name}: {before} → {after} рядків "
+          f"(прибрано {before-after}: SKIP {n_skip}, немаповані {n_unmapped})")
     return df
 
 
@@ -111,3 +122,5 @@ if __name__ == '__main__':
         print(f"  Збережено: {out.name}")
 
     print("\nГотово.")
+ 
+
