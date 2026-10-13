@@ -1,6 +1,7 @@
 """
 Парсер для файлів Форми 2-ТП старого формату (2000-2012).
 """
+import re
 from pathlib import Path
 import pandas as pd
 
@@ -85,6 +86,45 @@ def find_header_row(df):
     raise ValueError ("Не знайдено рядка з шапкою")
 
 
+# Заголовок форми: «... У ВОЛИНСЬКІЙ ОБЛАСТІ ЗА 2007 РІК» / «ЗА 2000 Р.» / «ЗА 2006РІК».
+# Назвам аркушів довіряти не можна: у файлі 2007 року аркуш названо «2006»,
+# у 2009 — «2008», у 2011 — «2010», а у файлах 2002 і 2003 лежать обидва роки.
+_TITLE_YEAR_RE = re.compile(r"ЗА\s*((?:19|20)\d{2})\s*Р", re.IGNORECASE)
+
+
+def title_year(df, max_rows=10):
+    """Рік із заголовка форми (перші max_rows рядків) або None."""
+    for value in df.iloc[:max_rows].values.ravel():
+        if pd.notna(value):
+            match = _TITLE_YEAR_RE.search(str(value))
+            if match:
+                return int(match.group(1))
+    return None
+
+
+def load_year_sheet(filepath, year):
+    """
+    Повертає (назва_аркуша, DataFrame) того аркуша, чий заголовок каже «ЗА {year} РІК».
+    Порожні аркуші пропускаються. Якщо такий аркуш не рівно один — ValueError
+    з переліком аркушів і їхніх років, а не мовчазний вибір першого.
+    """
+    xl = pd.ExcelFile(filepath, engine="xlrd")
+    by_sheet = {}
+    for name in xl.sheet_names:
+        df = xl.parse(name, header=None)
+        if not df.empty:
+            by_sheet[name] = (title_year(df), df)
+
+    matches = [name for name, (ty, _) in by_sheet.items() if ty == year]
+    if len(matches) != 1:
+        found = {name: ty for name, (ty, _) in by_sheet.items()}
+        raise ValueError(
+            f"{filepath}: очікував рівно один аркуш із заголовком «ЗА {year} РІК», "
+            f"знайдено {len(matches)}. Непорожні аркуші → рік у заголовку: {found}"
+        )
+    return matches[0], by_sheet[matches[0]][1]
+
+
 # ============ ОСНОВНА ФУНКЦІЯ ПАРСИНГУ ============
 
 def parse_old_format(filepath, year):
@@ -100,7 +140,8 @@ def parse_old_format(filepath, year):
     """
     
     # --- Завантаження ---
-    df = pd.read_excel(filepath, engine="xlrd", header=None)
+    sheet, df = load_year_sheet(filepath, year)
+    print(f"    аркуш: {sheet!r}  {df.shape}")
     header_row = find_header_row(df)
     section_iv_start = find_section_iv_start(df)
 
@@ -298,3 +339,5 @@ if __name__ == "__main__":
     pd.concat(relocation_aggregate, ignore_index=True).to_csv(PROC / "relocation_aggregate.csv", index=False)
  
     print("\nЗбережено в data/processed/: hosts_meta.csv, finances.csv, populations.csv, harvest.csv, relocation_aggregate.csv")
+ 
+
